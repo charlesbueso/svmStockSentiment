@@ -5,7 +5,6 @@ from sklearn.svm import LinearSVC
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
 #Import data and split into 70%, 15%, 15%
-#NOTE: Maybe randomize?
 df= pd.read_csv('Combined_News_DJIA.csv',encoding='ISO-8859-1')
 train = df.iloc[:1392,:]
 development = df.iloc[1393:1690]
@@ -15,25 +14,52 @@ test=  df.iloc[1690:,:]
 with open("stopWords.txt", "r") as f:
     stopWords = {k:v for k, *v in map(str.split, f)}  
 
-#Remove punctuation
+##Data normalization for all 3 datasets
+#Remove punctuation TRAINING
 data= train.iloc[:,2:27]
 data.replace("[^a-zA-Z]"," ",regex=True, inplace=True)
-
-#Rename column name for ease of access, and lowercase words
+#Rename column name for ease of access, and lowercase words TRAINING
 list1=[i for i in range(25)]
 new_Index=[str(i) for i in list1]
 data.columns= new_Index
 for index in new_Index:
     data[index]=data[index].str.lower()
-
-#Bag of words for each headline to convert into vectors
+#Bag of words for each headline to convert into vectors TRAINING
 headlines=[]
 for row in range(0,len(data.index)):
     headlines.append(' '.join(str(x) for x in data.iloc[row,0:25]))
 
+#Remove punctuation DEVELOPMENT
+data = development.iloc[:,2:27]
+data.replace("[^a-zA-Z]"," ",regex=True, inplace=True)
+#Rename column name for ease of access, and lowercase words DEVELOPMENT
+list1=[i for i in range(25)]
+new_Index=[str(i) for i in list1]
+data.columns= new_Index
+for index in new_Index:
+    data[index]=data[index].str.lower()
+#Bag of words for each headline to convert into vectors DEVELOPMENT
+developmentHeadlines=[]
+for row in range(0,len(data.index)):
+    developmentHeadlines.append(' '.join(str(x) for x in data.iloc[row,0:25]))    
+    
+#Remove punctuation TESTING
+data = test.iloc[:,2:27]
+data.replace("[^a-zA-Z]"," ",regex=True, inplace=True)
+#Rename column name for ease of access, and lowercase words TESTING
+list1=[i for i in range(25)]
+new_Index=[str(i) for i in list1]
+data.columns= new_Index
+for index in new_Index:
+    data[index]=data[index].str.lower()
+#Bag of words for each headline to convert into vectors DEVELOPMENT
+testHeadlines=[]
+for row in range(0,len(data.index)):
+    testHeadlines.append(' '.join(str(x) for x in data.iloc[row,0:25]))
 
 
-vocabulary = set([]) #len 28196 without stopwords
+#Vocabulary with training data, remove stopwords
+vocabulary = set([])
 for i in headlines:
     for word in i.split():
         if word not in stopWords:
@@ -41,14 +67,12 @@ for i in headlines:
 vocabularyList = list(vocabulary)            
       
 
-#converts the training data into a numpy array of shape 
-#(num_of_training_examples x num_of_features), uses TF-IDF with default  (HEADLINES)1392*28196(FEATURES)
-#stopword removal and sublinearTF (replace tf with 1 + log(tf))
-def ownTFIDFVectorizer(dataframe, vocabularyList, stopwords=True, sublinearTf=False):
+#converts the data into a numpy array of shape 
+#(num_of_training_examples x num_of_features) // training = (HEADLINES)1392*28196(FEATURES)
+#sublinearTF (replace tf with 1 + log(tf)), takes in vocabularyList from training set as features 
+def ownTFIDFVectorizer(dataframe, vocabularyList, sublinearTf=False):
     
     trainVectorized = np.zeros((len(dataframe),len(vocabularyList)))  
-    
-
 
     rowIndex = 0
     for headline in dataframe:
@@ -65,7 +89,7 @@ def ownTFIDFVectorizer(dataframe, vocabularyList, stopwords=True, sublinearTf=Fa
                 if sublinearTf == True:
                     trainVectorized[rowIndex,colIndex] = 1 + math.log(freqDict[vocabularyList[colIndex]])
                 else: trainVectorized[rowIndex,colIndex] = freqDict[vocabularyList[colIndex]]
-                    
+                
         rowIndex += 1
 
     return trainVectorized
@@ -75,22 +99,7 @@ trainedVectorized = ownTFIDFVectorizer(headlines, vocabularyList)
 supportVectorClassifier = LinearSVC()
 supportVectorClassifier.fit(trainedVectorized, train['Label'])
 
-#Preparing development set
-#Remove punctuation
-data = development.iloc[:,2:27]
-data.replace("[^a-zA-Z]"," ",regex=True, inplace=True)
-
-list1=[i for i in range(25)]
-new_Index=[str(i) for i in list1]
-data.columns= new_Index
-for index in new_Index:
-    data[index]=data[index].str.lower()
-
-developmentHeadlines=[]
-for row in range(0,len(data.index)):
-    developmentHeadlines.append(' '.join(str(x) for x in data.iloc[row,0:25]))
-
-
+#Development predictions
 developmentVectorized = ownTFIDFVectorizer(developmentHeadlines, vocabularyList)
 predictions = supportVectorClassifier.predict(developmentVectorized)
 
