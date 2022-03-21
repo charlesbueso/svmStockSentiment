@@ -1,5 +1,8 @@
 import pandas as pd
 import numpy as np
+import math
+from sklearn.svm import LinearSVC
+from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
 #Import data and split into 70%, 15%, 15%
 #NOTE: Maybe randomize?
@@ -28,33 +31,25 @@ headlines=[]
 for row in range(0,len(data.index)):
     headlines.append(' '.join(str(x) for x in data.iloc[row,0:25]))
 
+
+
+vocabulary = set([]) #len 28196 without stopwords
+for i in headlines:
+    for word in i.split():
+        if word not in stopWords:
+            vocabulary.add(word)
+vocabularyList = list(vocabulary)            
+      
+
 #converts the training data into a numpy array of shape 
 #(num_of_training_examples x num_of_features), uses TF-IDF with default  (HEADLINES)1392*28196(FEATURES)
 #stopword removal and sublinearTF (replace tf with 1 + log(tf))
-def ownTFIDFVectorizer(dataframe, stopwords=True, sublinearTf=True):
+def ownTFIDFVectorizer(dataframe, vocabularyList, stopwords=True, sublinearTf=False):
     
-    vocabulary = set([]) #len 28196 without stopwords
-    for i in dataframe:
-        for word in i.split():
-            if stopwords == True and word not in stopWords:
-                    vocabulary.add(word)
-            elif stopwords == False:
-                vocabulary.add(word)
-    vocabularyList = list(vocabulary)            
-    trainVectorized = np.zeros((len(dataframe),len(vocabulary)))        
+    trainVectorized = np.zeros((len(dataframe),len(vocabularyList)))  
     
-    #Numpy array headers
-    #index = 1
-    #for x in vocabulary:
-     #   trainVectorized[0,index] = x
-      #  index +=1
-    
-    #index = 1
-    #for x in dataframe:
-     #   trainVectorized[index,0] = x
-      #  index += 1
-    
-    
+
+
     rowIndex = 0
     for headline in dataframe:
         #Dictionary with frequency of words for each headline
@@ -67,10 +62,42 @@ def ownTFIDFVectorizer(dataframe, stopwords=True, sublinearTf=True):
         #Populate with term frequencies TF 
         for colIndex in range(len(vocabularyList)):
             if vocabularyList[colIndex] in freqDict:
-                trainVectorized[rowIndex,colIndex] = freqDict[vocabularyList[colIndex]]
+                if sublinearTf == True:
+                    trainVectorized[rowIndex,colIndex] = 1 + math.log(freqDict[vocabularyList[colIndex]])
+                else: trainVectorized[rowIndex,colIndex] = freqDict[vocabularyList[colIndex]]
                     
         rowIndex += 1
 
-    return trainVectorized, not np.any(trainVectorized), trainVectorized.shape
+    return trainVectorized
 
-print(ownTFIDFVectorizer(headlines))
+#Building SVC
+trainedVectorized = ownTFIDFVectorizer(headlines, vocabularyList)
+supportVectorClassifier = LinearSVC()
+supportVectorClassifier.fit(trainedVectorized, train['Label'])
+
+#Preparing development set
+#Remove punctuation
+data = development.iloc[:,2:27]
+data.replace("[^a-zA-Z]"," ",regex=True, inplace=True)
+
+list1=[i for i in range(25)]
+new_Index=[str(i) for i in list1]
+data.columns= new_Index
+for index in new_Index:
+    data[index]=data[index].str.lower()
+
+developmentHeadlines=[]
+for row in range(0,len(data.index)):
+    developmentHeadlines.append(' '.join(str(x) for x in data.iloc[row,0:25]))
+
+
+developmentVectorized = ownTFIDFVectorizer(developmentHeadlines, vocabularyList)
+predictions = supportVectorClassifier.predict(developmentVectorized)
+
+#Results
+matrix= confusion_matrix(development["Label"],predictions)
+print(matrix)
+score= accuracy_score(development["Label"],predictions)
+print(score)
+report= classification_report(development['Label'],predictions)
+print(report)
