@@ -2,7 +2,8 @@ import pandas as pd
 import numpy as np
 import math
 from sklearn.svm import LinearSVC
-from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import accuracy_score, classification_report
 
 #Import data and split into 70%, 15%, 15%
 df= pd.read_csv('Combined_News_DJIA.csv',encoding='ISO-8859-1')
@@ -70,7 +71,8 @@ vocabularyList = list(vocabulary)
 #converts the data into a numpy array of shape 
 #(num_of_training_examples x num_of_features) // training = (HEADLINES)1392*28196(FEATURES)
 #sublinearTF (replace tf with 1 + log(tf)), takes in vocabularyList from training set as features 
-def ownTFIDFVectorizer(dataframe, vocabularyList, sublinearTf=False):
+#always takes dataframe*vocabularyList as dimension of final vector
+def ownCountVectorizer(dataframe, vocabularyList, sublinearTf=False):
     
     trainVectorized = np.zeros((len(dataframe),len(vocabularyList)))  
 
@@ -95,18 +97,40 @@ def ownTFIDFVectorizer(dataframe, vocabularyList, sublinearTf=False):
     return trainVectorized
 
 #Building SVC
-trainedVectorized = ownTFIDFVectorizer(headlines, vocabularyList)
+trainedVectorized = ownCountVectorizer(headlines, vocabularyList)
 supportVectorClassifier = LinearSVC()
 supportVectorClassifier.fit(trainedVectorized, train['Label'])
 
 #Development predictions
-developmentVectorized = ownTFIDFVectorizer(developmentHeadlines, vocabularyList)
+developmentVectorized = ownCountVectorizer(developmentHeadlines, vocabularyList)
 predictions = supportVectorClassifier.predict(developmentVectorized)
 
 #Results
-matrix= confusion_matrix(development["Label"],predictions)
-print(matrix)
 score= accuracy_score(development["Label"],predictions)
-print(score)
+print("Development set with own CountVectorizer results: \n",score)
 report= classification_report(development['Label'],predictions)
+print(report)
+
+#Test predictions
+testVectorized = ownCountVectorizer(testHeadlines, vocabularyList)
+predictions = supportVectorClassifier.predict(testVectorized)
+
+#Results
+score= accuracy_score(test["Label"],predictions)
+print("Test set with own CountVectorizer results: \n",score)
+report= classification_report(test['Label'],predictions)
+print(report)
+
+##Implementing sklearn's TFIDF Vectorizer
+tfidf = TfidfVectorizer(ngram_range=(2,2))
+traindataset= tfidf.fit_transform(headlines)
+tfidfSupportVectorClassifier = LinearSVC()
+supportVectorClassifier.fit(traindataset, train['Label'])
+
+developmentTFIDFVectorized = tfidf.transform(developmentHeadlines)
+predictionsTfidf = supportVectorClassifier.predict(developmentTFIDFVectorized)
+
+score= accuracy_score(development["Label"],predictionsTfidf)
+print("Test set with sklearn's TfidfVectorizer results: \n",score)
+report= classification_report(development['Label'],predictionsTfidf)
 print(report)
